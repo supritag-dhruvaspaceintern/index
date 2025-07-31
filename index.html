@@ -1,0 +1,198 @@
+echo "# index" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/supritag-dhruvaspaceintern/index.git
+git push -u origin main
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanosatellite Retroreflector Sizing Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #0056b3;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input[type="text"], .input-group input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #0056b3;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #004494;
+        }
+        .results-section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9f4ff;
+            border-left: 5px solid #0056b3;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Nanosatellite Retroreflector Sizing Tool</h1>
+        <p>
+            Please enter the parameters for your ground station and mission to calculate the required retroreflector diameter.
+        </p>
+
+        <div id="inputForm">
+            <h2>Input Parameters</h2>
+            <div class="input-group">
+                <label for="stationName">Ground Station Name:</label>
+                <input type="text" id="stationName" value="Graz SLR Station">
+            </div>
+            <div class="input-group">
+                <label for="laserEnergy">Laser Pulse Energy (mJ):</label>
+                <input type="number" id="laserEnergy" value="25" step="any">
+            </div>
+            <div class="input-group">
+                <label for="wavelength">Laser Wavelength (nm):</label>
+                <input type="number" id="wavelength" value="532" step="any">
+            </div>
+            <div class="input-group">
+                <label for="beamDivergence">Transmitted Beam Divergence (µrad):</label>
+                <input type="number" id="beamDivergence" value="10" step="any">
+            </div>
+            <div class="input-group">
+                <label for="receiverDiameter">Receiver Telescope Diameter (m):</label>
+                <input type="number" id="receiverDiameter" value="0.8" step="any">
+            </div>
+            <div class="input-group">
+                <label for="orbitAltitude">Nanosatellite Orbit Altitude (km):</label>
+                <input type="number" id="orbitAltitude" value="600" step="any">
+            </div>
+            <div class="input-group">
+                <label for="minPhotons">Minimum Required Photons per Shot:</label>
+                <input type="number" id="minPhotons" value="0.5" step="any">
+            </div>
+            <div class="input-group">
+                <label for="numCcrs">Number of CCRs in the Array:</label>
+                <input type="number" id="numCcrs" value="8" step="1">
+            </div>
+
+            <button onclick="calculateSizing()">Calculate Sizing</button>
+        </div>
+
+        <div id="results" class="results-section" style="display:none;">
+            <h2>Calculation Results</h2>
+            <p id="resultsOutput"></p>
+        </div>
+    </div>
+
+    <script>
+        function calculateSizing() {
+            try {
+                // Get user inputs from the form
+                const stationName = document.getElementById('stationName').value;
+                const laserEnergy_mj = parseFloat(document.getElementById('laserEnergy').value);
+                const wavelength_nm = parseFloat(document.getElementById('wavelength').value);
+                const beamDivergence_urad = parseFloat(document.getElementById('beamDivergence').value);
+                const receiverDiameter_m = parseFloat(document.getElementById('receiverDiameter').value);
+                const orbitAltitude_km = parseFloat(document.getElementById('orbitAltitude').value);
+                const minPhotons = parseFloat(document.getElementById('minPhotons').value);
+                const numCcrs = parseInt(document.getElementById('numCcrs').value);
+
+                // --- Input Validation ---
+                if (isNaN(laserEnergy_mj) || isNaN(wavelength_nm) || isNaN(beamDivergence_urad) ||
+                    isNaN(receiverDiameter_m) || isNaN(orbitAltitude_km) || isNaN(minPhotons) || isNaN(numCcrs)) {
+                    document.getElementById('results').style.display = 'block';
+                    document.getElementById('resultsOutput').innerHTML = '<span class="error">Error: Please enter valid numbers for all fields.</span>';
+                    return;
+                }
+
+                // --- Core Calculation Logic (from Python script) ---
+                const h = 6.62607015e-34; // Planck's constant (J*s)
+                const c = 2.99792458e8;   // Speed of light (m/s)
+
+                // Define other fixed parameters
+                const EARTH_RADIUS = 6371e3;
+                const ATMOSPHERIC_TRANSMISSION = 0.7;
+                const SYSTEM_EFFICIENCY = 0.2;
+                const REFLECTIVITY_RHO = 0.93;
+
+                // Convert user inputs to required units
+                const laserEnergy_J = laserEnergy_mj / 1000;
+                const wavelength_m = wavelength_nm / 1e9;
+                const beamDivergence_rad = beamDivergence_urad / 1e6;
+                const receiverApertureArea_m2 = Math.PI * Math.pow((receiverDiameter_m / 2), 2);
+                const slantRange_m = orbitAltitude_km * 1000 + EARTH_RADIUS;
+
+                // 1. Calculate the total required optical cross-section for the array (sigma_LRA)
+                const sigma_LRA = (minPhotons * h * c * Math.pow(beamDivergence_rad, 2) * Math.pow((4 * Math.PI * Math.pow(slantRange_m, 2)), 2)) /
+                                  (laserEnergy_J * wavelength_m * receiverApertureArea_m2 * Math.pow(ATMOSPHERIC_TRANSMISSION, 2) * SYSTEM_EFFICIENCY);
+                
+                // 2. Calculate the required optical cross-section for a single CCR
+                const sigma_cc = sigma_LRA / numCcrs;
+                
+                // 3. Calculate the diameter (D) of a single CCR
+                const diameter = Math.pow((4 * Math.pow(wavelength_m, 2) * sigma_cc) / (Math.pow(Math.PI, 3) * REFLECTIVITY_RHO), 1/4);
+                const diameter_mm = diameter * 1000;
+
+                // --- Display Results ---
+                const outputHtml = `
+                    <p><strong>Calculating for:</strong> ${stationName}</p>
+                    <hr>
+                    <p><strong>Total required optical cross-section for the array:</strong> ${sigma_LRA.toExponential(2)} m²</p>
+                    <p><strong>Required optical cross-section for a single CCR:</strong> ${sigma_cc.toExponential(2)} m²</p>
+                    <p><strong>Calculated diameter for a single CCR:</strong> ${diameter.toFixed(4)} m or ${diameter_mm.toFixed(2)} mm</p>
+                    <hr>
+                    <p><em>Note: This is a starting point for design. The diameter must be validated with other factors like velocity aberration compensation and physical constraints.</em></p>
+                `;
+                document.getElementById('resultsOutput').innerHTML = outputHtml;
+                document.getElementById('results').style.display = 'block';
+
+            } catch (e) {
+                document.getElementById('results').style.display = 'block';
+                document.getElementById('resultsOutput').innerHTML = `<span class="error">An unexpected error occurred: ${e.message}</span>`;
+            }
+        }
+    </script>
+
+</body>
+</html>

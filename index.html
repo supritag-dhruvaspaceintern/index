@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nanosatellite Retroreflector Sizing Tool</title>
+     <title>Nanosatellite Retroreflector Sizing Tool</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -71,7 +72,7 @@
     <div class="container">
         <h1>Nanosatellite Retroreflector Sizing Tool</h1>
         <p>
-            Please enter the parameters for your ground station and mission to calculate the required retroreflector diameter.
+            Please enter the parameters for your ground station and mission to calculate the required retroreflector diameter and other design parameters.
         </p>
 
         <div id="inputForm">
@@ -108,6 +109,11 @@
                 <label for="numCcrs">Number of CCRs in the Array:</label>
                 <input type="number" id="numCcrs" value="8" step="1">
             </div>
+            <div class="input-group">
+                <label for="refractiveIndex">CCR Material Refractive Index:</label>
+                <input type="number" id="refractiveIndex" value="1.458" step="any">
+                <p class="note">A typical value for fused silica is ~1.458</p>
+            </div>
 
             <button onclick="calculateSizing()">Calculate Sizing</button>
         </div>
@@ -130,18 +136,23 @@
                 const orbitAltitude_km = parseFloat(document.getElementById('orbitAltitude').value);
                 const minPhotons = parseFloat(document.getElementById('minPhotons').value);
                 const numCcrs = parseInt(document.getElementById('numCcrs').value);
+                const refractiveIndex = parseFloat(document.getElementById('refractiveIndex').value);
 
                 // --- Input Validation ---
                 if (isNaN(laserEnergy_mj) || isNaN(wavelength_nm) || isNaN(beamDivergence_urad) ||
-                    isNaN(receiverDiameter_m) || isNaN(orbitAltitude_km) || isNaN(minPhotons) || isNaN(numCcrs)) {
+                    isNaN(receiverDiameter_m) || isNaN(orbitAltitude_km) || isNaN(minPhotons) ||
+                    isNaN(numCcrs) || isNaN(refractiveIndex)) {
                     document.getElementById('results').style.display = 'block';
                     document.getElementById('resultsOutput').innerHTML = '<span class="error">Error: Please enter valid numbers for all fields.</span>';
                     return;
                 }
 
-                // --- Core Calculation Logic (from Python script) ---
+                // --- Core Calculation Logic ---
+                // Fundamental constants
                 const h = 6.62607015e-34; // Planck's constant (J*s)
                 const c = 2.99792458e8;   // Speed of light (m/s)
+                const G = 6.6743e-11;     // Gravitational constant (N m^2/kg^2)
+                const EARTH_MASS = 5.972e24; // Earth mass (kg)
 
                 // Define other fixed parameters
                 const EARTH_RADIUS = 6371e3;
@@ -163,19 +174,46 @@
                 // 2. Calculate the required optical cross-section for a single CCR
                 const sigma_cc = sigma_LRA / numCcrs;
                 
-                // 3. Calculate the diameter (D) of a single CCR
-                const diameter = Math.pow((4 * Math.pow(wavelength_m, 2) * sigma_cc) / (Math.pow(Math.PI, 3) * REFLECTIVITY_RHO), 1/4);
-                const diameter_mm = diameter * 1000;
+                // 3. Calculate the aperture diameter (D) of a single CCR
+                const diameter_m = Math.pow((4 * Math.pow(wavelength_m, 2) * sigma_cc) / (Math.pow(Math.PI, 3) * REFLECTIVITY_RHO), 1/4);
+                const diameter_mm = diameter_m * 1000;
 
+                // --- Additional Calculations based on new parameters ---
+                
+                // Ideal (Diffraction-Limited) Circular Aperture
+                const ideal_area = Math.PI * Math.pow(diameter_m / 2, 2);
+                const sigma_ideal = (4 * Math.PI * Math.pow(ideal_area, 2)) / Math.pow(wavelength_m, 2);
+
+                // Cube Corner Depth (H)
+                const side_length_S = diameter_m * Math.sqrt(3) / 2;
+                const cube_depth_H = side_length_S / Math.sqrt(6);
+
+                // Velocity Aberration Angle and Dihedral Angle Offset
+                // Approximate orbital velocity for a circular orbit
+                const orbit_radius_m = EARTH_RADIUS + (orbitAltitude_km * 1000);
+                const orbital_velocity_v = Math.sqrt(G * EARTH_MASS / orbit_radius_m);
+                // Calculate the velocity aberration angle (in radians)
+                const velocity_aberration_rad = (2 * orbital_velocity_v) / c;
+                const velocity_aberration_urad = velocity_aberration_rad * 1e6;
+                // Estimate the dihedral angle offset (spoiling) required to compensate
+                const dihedral_angle_offset_rad = velocity_aberration_rad / (2 * refractiveIndex);
+                const dihedral_angle_offset_arcsec = dihedral_angle_offset_rad * (180 / Math.PI) * 3600;
+                
                 // --- Display Results ---
                 const outputHtml = `
                     <p><strong>Calculating for:</strong> ${stationName}</p>
                     <hr>
                     <p><strong>Total required optical cross-section for the array:</strong> ${sigma_LRA.toExponential(2)} m²</p>
                     <p><strong>Required optical cross-section for a single CCR:</strong> ${sigma_cc.toExponential(2)} m²</p>
-                    <p><strong>Calculated diameter for a single CCR:</strong> ${diameter.toFixed(4)} m or ${diameter_mm.toFixed(2)} mm</p>
+                    <p><strong>Calculated diameter (aperture) for a single CCR:</strong> ${diameter_m.toFixed(4)} m or ${diameter_mm.toFixed(2)} mm</p>
                     <hr>
-                    <p><em>Note: This is a starting point for design. The diameter must be validated with other factors like velocity aberration compensation and physical constraints.</em></p>
+                    <h3>Additional Design Parameters</h3>
+                    <p><strong>Ideal (Diffraction-Limited) Optical Cross-Section:</strong> ${sigma_ideal.toExponential(2)} m²</p>
+                    <p><strong>Estimated Cube Corner Depth:</strong> ${cube_depth_H.toFixed(4)} m</p>
+                    <p><strong>Estimated Velocity Aberration Angle:</strong> ${velocity_aberration_urad.toFixed(2)} µrad</p>
+                    <p><strong>Estimated Dihedral Angle Offset (Spoiling):</strong> ${dihedral_angle_offset_rad.toExponential(2)} rad or ${dihedral_angle_offset_arcsec.toFixed(2)} arcsec</p>
+                    <hr>
+                   
                 `;
                 document.getElementById('resultsOutput').innerHTML = outputHtml;
                 document.getElementById('results').style.display = 'block';
